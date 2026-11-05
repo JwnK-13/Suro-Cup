@@ -112,7 +112,7 @@ input[type=range]{width:100%}
 <button class="btn" id="rnext" style="display:none">Lanjut</button><button class="btn" id="again">Main lagi</button><button class="btn alt" id="rmenu">Main Menu</button></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 "use strict";
 /* ===== CONFIG (satuan meter, detik) — angka bisa diubah ===== */
@@ -596,17 +596,19 @@ function loadTour(){try{const d=JSON.parse(localStorage.getItem(TKEY)||'null');i
 TS=loadTour();if(TS)$('bsc').textContent='SURO CUP · Lanjutkan Turnamen';
 
 /* ===== MULTIPLAYER (room via WebRTC/PeerJS; owner room = host yang menjalankan simulasi) ===== */
-const MP={role:null,peer:null,conn:null,conns:{},room:null,me:null,cfg:null,sn:null,first:false,note:''};
+const MP={role:null,mq:null,base:'',conn:null,conns:{},seen:{},room:null,me:null,cfg:null,sn:null,first:false,note:'',srv:'',lastHost:0,tmr:0};
 const inp0={t:0,s:0,hand:false},ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]};
 const PICKS=[];['vagary','stratos','vyre'].forEach(k=>['ST','MF','GK'].forEach(ro=>PICKS.push({k,ro})));
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),mpErr=t=>{$('mperr').textContent=t||''};
 const rid=()=>Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
 const myPid=()=>MP.role==='host'?'host':MP.me,humanPf=r=>(r.role==='ST'?1.1:1)*(r.nm==='PHANTOM'?1.08:1)*(r.nm==='CHAOS'?1.1:1);
 function mpName(){const n=($('mpname').value||'').trim().slice(0,14)||'PEMAIN';S.mpname=n;save();return n}
-function bc(m){Object.keys(MP.conns).forEach(id=>{try{MP.conns[id].send(m)}catch(e){}})}
-function mpSend(m){if(MP.role==='host')hostMsg('host',m);else if(MP.conn)try{MP.conn.send(m)}catch(e){}}
+function bc(m){if(MP.role==='host'&&MP.mq)try{MP.mq.publish(MP.base+'/dn',JSON.stringify(m))}catch(e){}}
+function sendTo(id,m){if(MP.mq)try{MP.mq.publish(MP.base+'/dn/'+id,JSON.stringify(m))}catch(e){}}
+function mpSend(m){if(MP.role==='host')hostMsg('host',m);else if(MP.mq&&MP.me)try{MP.mq.publish(MP.base+'/up',JSON.stringify({f:MP.me,m}))}catch(e){}}
 ['kick','hit','whistle','goal'].forEach(n=>{const o=SFX[n];let lt=0;SFX[n]=(...a)=>{o(...a);if(G.mph){const t=Date.now();if(n!=='hit'||t-lt>150){lt=t;bc({k:'ev',e:'s',a:[n]})}}}});
-function mpLeave(){const p=MP.peer;MP.role=null;MP.peer=null;MP.conn=null;MP.conns={};MP.room=null;MP.cfg=null;MP.sn=null;G.mph=G.mpc=G.spec=false;try{if(p)p.destroy()}catch(e){}$('mpr').classList.remove('on')}
+function mpLeave(){const q=MP.mq,r=MP.role;try{if(q){if(r==='host')q.publish(MP.base+'/dn',JSON.stringify({k:'close'}));else if(r==='client'&&MP.me)q.publish(MP.base+'/up',JSON.stringify({f:MP.me,m:{k:'bye'}}))}}catch(e){}
+ clearInterval(MP.tmr);MP.tmr=0;MP.role=null;MP.mq=null;MP.conn=null;MP.conns={};MP.seen={};MP.room=null;MP.cfg=null;MP.sn=null;MP.me=null;MP.lastHost=0;MP.joinOk=null;G.mph=G.mpc=G.spec=false;try{if(q)q.end()}catch(e){}$('mpr').classList.remove('on')}
 function slotOf(pid){const R_=MP.room;for(const s of['blue','red','spec']){const i=R_[s].findIndex(x=>x&&x.pid===pid);if(i>=0)return{s,i,o:R_[s][i]}}return null}
 function hostAdd(pid,name){const R_=MP.room,cnt=s=>R_[s].filter(Boolean).length,free=s=>R_[s].findIndex(x=>!x);let s=null;
  if(R_.phase==='lobby')s=(cnt('blue')<=cnt('red')?['blue','red']:['red','blue']).find(x=>free(x)>=0);
@@ -614,7 +616,7 @@ function hostAdd(pid,name){const R_=MP.room,cnt=s=>R_[s].filter(Boolean).length,
 function hostRemove(pid){const R_=MP.room;if(!R_)return;const o=slotOf(pid);if(o)R_[o.s][o.i]=null;delete MP.conns[pid];const r=ROBOTS.find(x=>x.hu===pid);if(r)r.hu=null;
  if(R_.phase==='pick'){if(!R_.blue.some(Boolean)||!R_.red.some(Boolean)){R_.phase='lobby';R_.blue.concat(R_.red).forEach(x=>x&&(x.pick=null,x.ok=false))}}}
 function chkAll(){const R_=MP.room,pl=R_.blue.concat(R_.red).filter(Boolean);if(R_.phase==='pick'&&pl.length&&pl.every(x=>x.ok))mpStart()}
-function hostPub(){const R_=MP.room;bc({k:'room',room:{id:R_.id,name:R_.name,n:R_.n,pw:!!R_.pw,blue:R_.blue,red:R_.red,spec:R_.spec,phase:R_.phase,names:R_.names,note:MP.note||''}});renderRoom()}
+function hostPub(){const R_=MP.room;bc({k:'room',room:{id:R_.id,name:R_.name,n:R_.n,pw:!!R_.pw,blue:R_.blue,red:R_.red,spec:R_.spec,phase:R_.phase,names:R_.names,srv:MP.srv||'',note:MP.note||''}});renderRoom()}
 function hostMsg(pid,m){const R_=MP.room;if(!R_)return;const o=slotOf(pid);let ch=true;
  switch(m.k){
  case'slot':if(R_.phase==='lobby'&&o&&R_[m.to]&&!R_[m.to][m.i]){const x=o.o;R_[o.s][o.i]=null;R_[m.to][m.i]=x}break;
@@ -626,38 +628,57 @@ function hostMsg(pid,m){const R_=MP.room;if(!R_)return;const o=slotOf(pid);let c
  case'kick':{const r=ROBOTS.find(x=>x.hu===pid);if(r&&G.state==='play')startKick(r);ch=false;break}
  default:ch=false}
  if(ch){hostPub();chkAll()}}
-function mpCreate(){const name=($('rname').value||'').trim().slice(0,20)||'Room Suro Cup',pw=($('rpw').value||'').trim().slice(0,12),n=+$('rmode').value||1,pn=mpName();
- if(!window.Peer){mpErr('Library multiplayer gagal dimuat (cek koneksi internet).');return}
- mpLeave();mpErr('Membuat room...');MP.role='host';const id=rid(),pr=new Peer('surocup-'+id,{config:ICE});MP.peer=pr;
- pr.on('open',()=>{MP.room={id,name,pw,n,blue:Array(n).fill(null),red:Array(n).fill(null),spec:Array(6).fill(null),phase:'lobby',names:{blue:'TIM BIRU',red:'TIM MERAH'}};MP.room.blue[0]={pid:'host',name:pn,pick:null,ok:false};mpErr('');hostPub()});
- pr.on('connection',c=>{c.on('data',m=>{const R_=MP.room;if(!R_)return;
-   if(m.k==='join'){if(R_.pw&&m.pw!==R_.pw){c.send({k:'deny',r:'Password salah'});setTimeout(()=>c.close(),400);return}
-    MP.conns[c.peer]=c;if(!hostAdd(c.peer,String(m.name||'Pemain').slice(0,14))){c.send({k:'deny',r:'Room penuh'});delete MP.conns[c.peer];setTimeout(()=>c.close(),400);return}
-    c.send({k:'hi',pid:c.peer});hostPub();if(R_.phase==='play'&&MP.cfg)c.send({k:'start',cfg:MP.cfg})}
-   else if(MP.conns[c.peer])hostMsg(c.peer,m)});
-  c.on('close',()=>{if(MP.room&&MP.conns[c.peer]){hostRemove(c.peer);hostPub()}})});
- pr.on('error',e=>{if(e.type==='unavailable-id')mpCreate();else mpErr('Gagal membuat room: '+(e.type||e))})}
-function mpJoin(){const id=($('rid').value||'').trim().toUpperCase(),pw=($('rpw2').value||'').trim(),pn=mpName();
- if(!id){mpErr('Masukkan ID room');return}if(!window.Peer){mpErr('Library multiplayer gagal dimuat (cek koneksi internet).');return}
- mpLeave();MP.role='client';mpErr('Menghubungkan...');let ok=false;const pr=new Peer(undefined,{config:ICE});MP.peer=pr;
- const to=setTimeout(()=>{if(!ok){mpLeave();mpErr('Tidak bisa terhubung (ID salah atau jaringan memblokir koneksi).')}},12000);
- pr.on('open',()=>{const c=pr.connect('surocup-'+id,{reliable:true});MP.conn=c;
-  c.on('open',()=>{ok=true;clearTimeout(to);c.send({k:'join',name:pn,pw})});c.on('data',cMsg);
-  c.on('close',()=>{if(MP.role==='client'){mpLeave();toMenu();setTimeout(()=>alert('Koneksi ke host terputus.'),50)}})});
- pr.on('error',e=>{clearTimeout(to);const t=e.type==='peer-unavailable'?'Room tidak ditemukan':'Gagal: '+(e.type||e);mpLeave();mpErr(t)})}
-function cMsg(m){switch(m.k){
- case'hi':MP.me=m.pid;break;
+/* relay: broker MQTT publik via WebSocket aman (wss). Host memilih broker tercepat; kode room menyimpan nomor broker (huruf pertama). */
+const BRK=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://mqtt.eclipseprojects.io:443/mqtt','wss://test.mosquitto.org:8081'],BID='ABCD',TOP='surocup2026/',r5=()=>rid().slice(0,5);
+function needMqtt(){return new Promise(res=>{if(window.mqtt)return res(true);const sc=document.createElement('script');sc.src='https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';sc.onload=()=>res(!!window.mqtt);sc.onerror=()=>res(false);document.head.appendChild(sc)})}
+function mqConnect(url,tmo,will){return new Promise(res=>{let done=false,c;const f=ok=>{if(done)return;done=true;res(ok?c:null)};
+ try{c=window.mqtt.connect(url,{clientId:'sc'+Math.random().toString(16).slice(2,10),clean:true,connectTimeout:tmo,reconnectPeriod:2000,keepalive:20,will})}catch(e){f(false);return}
+ c.on('connect',()=>f(true));c.on('error',()=>{});setTimeout(()=>{if(!done){f(false);try{c.end(true)}catch(e){}}},tmo+300)})}
+function hostConnect(){const r=r5(),ps=BRK.map((u,i)=>mqConnect(u,7000,{topic:TOP+BID[i]+r+'/dn',payload:JSON.stringify({k:'close'}),qos:0,retain:false}));
+ return new Promise(res=>{let n=0,won=false;ps.forEach((p,i)=>p.then(c=>{n++;if(c&&!won){won=true;ps.forEach((q,j)=>{if(j!==i)q.then(x=>{if(x)try{x.end(true)}catch(e){}})});res({c,id:BID[i]+r,url:BRK[i]})}else if(n===ps.length&&!won)res(null)}))})}
+function startBeat(){clearInterval(MP.tmr);MP.tmr=setInterval(()=>{const n=Date.now();
+ if(MP.role==='host'){bc({k:'hb'});Object.keys(MP.conns).forEach(id=>{if(n-(MP.seen[id]||n)>9000){hostRemove(id);hostPub()}})}
+ else if(MP.role==='client'){mpSend({k:'ping'});if(MP.lastHost&&n-MP.lastHost>9000){toMenu();setTimeout(()=>alert('Koneksi ke host terputus.'),50)}}},2000)}
+function hostRecv(cid,m){const R_=MP.room;if(!R_||!cid||!m)return;MP.seen[cid]=Date.now();
+ if(m.k==='join'){if(MP.conns[cid]){sendTo(cid,{k:'hi',pid:cid});return}
+  if(R_.pw&&m.pw!==R_.pw){sendTo(cid,{k:'deny',r:'Password salah'});return}
+  if(!hostAdd(cid,String(m.name||'Pemain').slice(0,14))){sendTo(cid,{k:'deny',r:'Room penuh'});return}
+  MP.conns[cid]=1;sendTo(cid,{k:'hi',pid:cid});hostPub();if(R_.phase==='play'&&MP.cfg)sendTo(cid,{k:'start',cfg:MP.cfg});return}
+ if(!MP.conns[cid])return;if(m.k==='ping')return;if(m.k==='bye'){hostRemove(cid);hostPub();return}hostMsg(cid,m)}
+async function mpCreate(){const name=($('rname').value||'').trim().slice(0,20)||'Room Suro Cup',pw=($('rpw').value||'').trim().slice(0,12),n=+$('rmode').value||1,pn=mpName();
+ mpLeave();MP.role='host';mpErr('Menghubungkan ke server...');
+ if(!(await needMqtt())){mpLeave();mpErr('Library multiplayer gagal dimuat. Cek koneksi internet / matikan adblock.');return}
+ const w=await hostConnect();if(MP.role!=='host')return;
+ if(!w){mpLeave();mpErr('Tidak bisa terhubung ke server multiplayer. Jaringan mungkin memblokir WebSocket (wss). Coba ganti jaringan atau matikan VPN/adblock.');return}
+ const id=w.id;MP.mq=w.c;MP.base=TOP+id;MP.srv=w.url.split('//')[1].split(':')[0];
+ MP.mq.on('message',(t,p)=>{if(t!==MP.base+'/up')return;let m;try{m=JSON.parse(p.toString())}catch(e){return}hostRecv(m.f,m.m)});
+ MP.mq.subscribe(MP.base+'/up',{qos:0},err=>{if(err){mpLeave();mpErr('Gagal membuat room.');return}
+  MP.room={id,name,pw,n,blue:Array(n).fill(null),red:Array(n).fill(null),spec:Array(6).fill(null),phase:'lobby',names:{blue:'TIM BIRU',red:'TIM MERAH'}};MP.room.blue[0]={pid:'host',name:pn,pick:null,ok:false};mpErr('');startBeat();hostPub()})}
+async function mpJoin(){const id=($('rid').value||'').trim().toUpperCase(),pw=($('rpw2').value||'').trim(),pn=mpName();
+ if(id.length!==6||BID.indexOf(id[0])<0){mpErr('ID room tidak valid (6 karakter)');return}
+ mpLeave();MP.role='client';mpErr('Menghubungkan ke server...');
+ if(!(await needMqtt())){mpLeave();mpErr('Library multiplayer gagal dimuat. Cek koneksi internet / matikan adblock.');return}
+ const c=await mqConnect(BRK[BID.indexOf(id[0])],8000);if(MP.role!=='client')return;
+ if(!c){mpLeave();mpErr('Tidak bisa terhubung ke server relay. Jaringan mungkin memblokir WebSocket (wss); coba jaringan lain.');return}
+ const me='u'+r5()+r5();MP.mq=c;MP.base=TOP+id;MP.me=me;MP.conn=true;MP.lastHost=Date.now();let ok=false,tries=0;
+ MP.joinOk=()=>{ok=true};
+ c.on('message',(t,p)=>{if(t!==MP.base+'/dn'&&t!==MP.base+'/dn/'+me)return;let m;try{m=JSON.parse(p.toString())}catch(e){return}MP.lastHost=Date.now();cMsg(m)});
+ const join=()=>{if(ok||MP.role!=='client')return;if(++tries>5){mpLeave();mpErr('Room tidak ditemukan atau host tidak aktif.');return}mpErr('Mencari room...');mpSend({k:'join',name:pn,pw});setTimeout(join,1800)};
+ c.subscribe([MP.base+'/dn',MP.base+'/dn/'+me],{qos:0},err=>{if(err){mpLeave();mpErr('Gagal bergabung.');return}startBeat();join()})}
+function cMsg(m){if(MP.role!=='client')return;switch(m.k){
+ case'hi':MP.me=m.pid;if(MP.joinOk)MP.joinOk();break;
  case'deny':{const r=m.r;mpLeave();mpErr(r);break}
  case'room':MP.room=m.room;renderRoom();break;
  case'start':MP.cfg=m.cfg;startMatch('mpc');G.state='prep';G.t=0;MP.sn=null;MP.first=true;break;
  case'snap':clientSnap(m);break;
  case'ev':if(m.e==='t')toast(m.a[0],m.a[1]);else if(SFX[m.a[0]])SFX[m.a[0]]();break;
- case'end':clientEnd(m);break}}
+ case'end':clientEnd(m);break;
+ case'close':{toMenu();setTimeout(()=>alert('Host menutup room.'),50);break}}}
 function renderRoom(){const R_=MP.room;if(!R_||R_.phase==='play')return;const ae=document.activeElement;if(ae&&ae.id==='tname')return;
  ['menu','pm','mpm'].forEach(i=>$(i).classList.remove('on'));$('mpr').classList.add('on');
  const me=myPid(),nm=x=>x?esc(x.name)+(x.pid===me?' (kamu)':'')+(R_.phase==='pick'?(x.ok?' ✔':x.pick?' …':''):''):'Kosong',
   sl=(side,i)=>{const x=R_[side][i];return `<button class="slot ${x&&x.pid===me?'me':''} ${x?'':'emp'}" data-a="slot" data-s="${side}" data-i="${i}">${nm(x)}</button>`};
- let h=`<h1 style="font-size:30px">${esc(R_.name)}<small>ID: ${R_.id} · ${R_.n}v${R_.n} · ${R_.pw?'Dengan password':'Tanpa password'}</small></h1>`;
+ let h=`<h1 style="font-size:30px">${esc(R_.name)}<small>ID: ${R_.id} · ${R_.n}v${R_.n} · ${R_.srv||''} · ${R_.pw?'Dengan password':'Tanpa password'}</small></h1>`;
  if(R_.phase==='lobby'){h+='<div class="row"><div><h2>TIM BIRU</h2>'+R_.blue.map((_,i)=>sl('blue',i)).join('')+'</div><div><h2>TIM MERAH</h2>'+R_.red.map((_,i)=>sl('red',i)).join('')+'</div></div><h2>PENONTON</h2>'+R_.spec.map((_,i)=>sl('spec',i)).join('')
    +(R_.note?`<p style="color:#ff8a80">${esc(R_.note)}</p>`:'')+(MP.role==='host'?'<button class="btn" data-a="start">MULAI</button>':'<p>Menunggu owner room memulai...</p>')}
  else{const o=slotOf(me);
@@ -684,9 +705,9 @@ const MPX={prep(){const c=MP.cfg;ROBOTS.forEach(r=>{r.hu=null;r.rin=null});
  G.mph=MP.role==='host';G.mpc=MP.role==='client'}};
 let lastSnap=0,lastInp=0,lastI='';
 function mpTick(now){if(G.state==='menu')return;
- if(G.mph){if(now-lastSnap>50&&G.state!=='end'){lastSnap=now;bc({k:'snap',s:G.state,t:+G.t.toFixed(1),pi:G.pi,sc:[G.score.blue,G.score.red],ph:G.sched[G.pi]?G.sched[G.pi].l:'',b:[B.x,B.z,B.vx,B.vz].map(v=>+v.toFixed(3)),
+ if(G.mph){if(now-lastSnap>40&&G.state!=='end'){lastSnap=now;bc({k:'snap',s:G.state,t:+G.t.toFixed(1),pi:G.pi,sc:[G.score.blue,G.score.red],ph:G.sched[G.pi]?G.sched[G.pi].l:'',b:[B.x,B.z,B.vx,B.vz].map(v=>+v.toFixed(3)),
   r:ROBOTS.map(r=>[+r.x.toFixed(3),+r.z.toFixed(3),+r.th.toFixed(2),+r.vl.toFixed(2),+r.vr.toFixed(2),+r.kt.toFixed(2),r.out?1:0,r.in.hand?1:0])})}}
- else if(G.mpc&&!G.spec&&MP.conn){const q=inp.t.toFixed(2)+'|'+inp.s.toFixed(2)+'|'+(inp.hand?1:0);if((q!==lastI&&now-lastInp>40)||now-lastInp>400){lastI=q;lastInp=now;try{MP.conn.send({k:'inp',t:inp.t,s:inp.s,h:inp.hand})}catch(e){}}}}
+ else if(G.mpc&&!G.spec&&MP.conn){const q=inp.t.toFixed(2)+'|'+inp.s.toFixed(2)+'|'+(inp.hand?1:0);if((q!==lastI&&now-lastInp>40)||now-lastInp>400){lastI=q;lastInp=now;mpSend({k:'inp',t:inp.t,s:inp.s,h:inp.hand})}}}
 function clientSnap(m){G.state=m.s;G.t=m.t;G.pi=m.pi;G.score={blue:m.sc[0],red:m.sc[1]};if($('phase').textContent!==m.ph)$('phase').textContent=m.ph;MP.sn=m;
  if(MP.first){MP.first=false;ROBOTS.forEach((r,i)=>{const a=m.r[i];r.x=a[0];r.z=a[1];r.th=a[2]});B.x=m.b[0];B.z=m.b[1]}}
 function clientApply(dt){const sn=MP.sn;if(!sn)return;const k=1-Math.exp(-dt*16);
