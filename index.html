@@ -41,6 +41,9 @@ select{background:#14264a;border:2px solid #2c4572;border-radius:8px;padding:6px
 .lg{width:clamp(22px,5vh,34px);height:clamp(22px,5vh,34px);border-radius:6px;object-fit:cover;vertical-align:middle;flex:none}
 .tb{width:100%;border-collapse:collapse;font-size:16px}.tb td,.tb th{padding:2px 5px;text-align:center}.tb td:first-child{text-align:left}.me{color:var(--amber);font-weight:700}.tb{font-size:14px}.tb td,.tb th{padding:2px 3px}.tb th{opacity:.7;font-weight:600}.tg{font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;margin-left:3px;white-space:nowrap;vertical-align:middle}.tg.w{background:var(--amber);color:#111}.tg.r{background:#555;color:#eee}.tg.r.q{background:#2e9e57;color:#fff}.leg{font-size:12px;opacity:.7;margin:4px 0 10px}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.tabs .chip{min-width:64px;padding:5px 8px;font-size:16px}.vs{font-size:22px;font-weight:700;margin:6px 0}
+.in{width:100%;padding:8px;font:inherit;font-size:20px;background:#14264a;color:#fff;border:2px solid #2c4572;border-radius:8px}
+.slot{display:block;width:100%;margin:4px 0;padding:8px 10px;border-radius:8px;border:2px solid #2c4572;background:#14264a;color:#fff;font:inherit;font-size:18px;text-align:left;cursor:pointer}.slot.me{border-color:var(--amber);background:#2b3f69}.slot.emp{opacity:.6}
+.chip[disabled]{opacity:.35;cursor:not-allowed}
 #fsb{position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;width:40px;height:40px;border-radius:10px;border:2px solid #2c4572;background:rgba(15,29,54,.85);font-size:20px;z-index:20;cursor:pointer}
 #touch{z-index:5}.tg{position:absolute;left:calc(var(--x,3)*1vw);bottom:calc(var(--y,3)*1vh);transform:scale(var(--s,1));transform-origin:0 100%;opacity:var(--o,.92);pointer-events:auto;touch-action:none}
 .tg.r{left:auto;right:calc(var(--x,3)*1vw);transform-origin:100% 100%}
@@ -94,6 +97,14 @@ input[type=range]{width:100%}
 <h2>Durasi tiap babak</h2><select id="tmin"><option value="2">2 menit</option><option value="3" selected>3 menit</option><option value="5">5 menit</option><option value="7">7 menit (resmi)</option></select>
 <button class="btn" id="scgo">Mulai Turnamen</button><button class="btn alt" id="scback">Kembali</button></div></div>
 <div class="ov" id="hub"><div class="card" style="width:min(680px,100%)"><div id="hubh"></div><div class="tabs" id="htabs"></div><div id="hubc"></div><div class="row"><button class="btn alt" id="hmenu">Menu Utama</button><button class="btn alt" id="hnew">Turnamen Baru</button></div></div></div>
+<div class="ov" id="pm"><div class="card"><h1 style="font-size:32px">Match Resmi<small>7 + 7 menit</small></h1><button class="btn" id="pm1">Single Player (VS AI)</button><button class="btn" id="pm2" style="background:#19c37d">Multiplayer</button><button class="btn alt" id="pmb">Kembali</button></div></div>
+<div class="ov" id="mpm"><div class="card"><h1 style="font-size:32px">Multiplayer<small>Room · Match resmi 7 + 7 menit</small></h1>
+<h2>Nama kamu</h2><input class="in" id="mpname" maxlength="14" placeholder="Nama pemain">
+<div class="row"><button class="btn" id="mpb1">Buat Room</button><button class="btn alt" id="mpb2">Masuk Room</button></div>
+<div id="mpf1" style="display:none"><h2>Nama room</h2><input class="in" id="rname" maxlength="20" placeholder="Nama room"><h2>Password (kosongkan jika tanpa password)</h2><input class="in" id="rpw" maxlength="12"><h2>Mode</h2><select id="rmode"><option value="1">1v1</option><option value="2">2v2</option><option value="3">3v3</option></select><button class="btn" id="rgo">Buat</button></div>
+<div id="mpf2" style="display:none"><h2>ID room</h2><input class="in" id="rid" maxlength="8" placeholder="contoh: K7P2QX"><h2>Password (jika ada)</h2><input class="in" id="rpw2" maxlength="12"><button class="btn" id="rjoin">Masuk</button></div>
+<p id="mperr" style="color:#ff8a80"></p><button class="btn alt" id="mpback">Kembali</button></div></div>
+<div class="ov" id="mpr"><div class="card" style="width:min(720px,100%)"><div id="mprc"></div></div></div>
 <div class="ov" id="pause"><div class="card"><h1 style="font-size:36px">Pause</h1>
 <button class="btn" id="resume">Resume</button><button class="btn alt" id="restart">Restart</button><button class="btn alt" id="psetb">Settings</button><button class="btn alt" id="tomenu">Main Menu</button></div></div>
 
@@ -101,6 +112,7 @@ input[type=range]{width:100%}
 <button class="btn" id="rnext" style="display:none">Lanjut</button><button class="btn" id="again">Main lagi</button><button class="btn alt" id="rmenu">Main Menu</button></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 "use strict";
 /* ===== CONFIG (satuan meter, detik) — angka bisa diubah ===== */
@@ -370,7 +382,7 @@ function aiStep(r){if(r.out)return;const L=r.L,q=r.q||0,lp=(a,b)=>a+(b-a)*L,gk=r
 /* ===== PERTANDINGAN & ATURAN ===== */
 const G={fixed:false,state:'menu',paused:false,mode:'match',score:{blue:0,red:0},t:0,pi:0,sched:[],w:0,after:null,ko:null,stuck:0,elapsed:0,names:{blue:'BIRU',red:'MERAH'},logos:{},info:null};
 let ST;const newStats=()=>({goals:{blue:0,red:0},shots:{blue:0,red:0},poss:{blue:0,red:0},fouls:0});ST=newStats();
-function toast(t,c){const m=$('msg');m.textContent=t;m.className='show '+(c||'');clearTimeout(toast.h);toast.h=setTimeout(()=>m.className='',2200)}
+function toast(t,c){if(G.mph)bc({k:'ev',e:'t',a:[t,c]});const m=$('msg');m.textContent=t;m.className='show '+(c||'');clearTimeout(toast.h);toast.h=setTimeout(()=>m.className='',2200)}
 function wait(s,msg,fn,c){G.state='wait';G.w=s;G.after=fn;if(msg)toast(msg,c)}
 function resume(){SFX.whistle();G.state='play';G.mk=G.rs;G.rs=null;G.rt=0}
 const pickK=(t,o)=>{if(G.fixed&&t==='blue'&&P&&!P.out&&(o[0]==='GK'?P.role==='GK':P.role!=='GK'))return P;return pickK0(t,o)};
@@ -407,42 +419,42 @@ function breakTick(dt){['blue','red'].forEach(t=>{const inf=G.info&&G.info[t];if
  if(r.out){if(r.back>0){r.back-=dt;if(r.back<=0)comeBack(r)}}
  else if(inf.brk&&live(t)>1&&r!==P&&!(G.mk&&G.mk.kicker===r)&&Math.random()<inf.brk*dt/60){r.out=true;r.holding=false;r.back=40+Math.random()*50;r.mesh.visible=false;toast((r.nm||ROLE[r.role])+' RUSAK · keluar sementara',t)}})})}
 function sim(dt){const play=G.state==='play';if(P.out){const c=pickK('blue',['ST','MF','GK']);if(c)P=c}
- ROBOTS.forEach(r=>{if(r.out)return;if(r===P){r.in.t=play?inp.t:0;r.in.s=play?inp.s:0;r.in.hand=play&&inp.hand}else if(play)aiStep(r);else{r.in.t=r.in.s=0}});
+ ROBOTS.forEach(r=>{if(r.out)return;if(r===P||r.hu){const i=r===P?inp:(r.rin||inp0);r.in.t=play?i.t:0;r.in.s=play?i.s:0;r.in.hand=play&&!!i.hand}else if(play)aiStep(r);else{r.in.t=r.in.s=0}});
  ROBOTS.forEach(r=>stepRobot(r,dt));robotVsRobot();koRestrict();
  ROBOTS.forEach(r=>{if(!r.out){handle(r,dt);kickStep(r,dt)}});ballPhys(dt);if(!Number.isFinite(B.x+B.z+B.vx+B.vz)){B.x=B.z=B.vx=B.vz=0;B.holder=null}
- if(play){breakTick(dt);if(G.mk){G.rt+=dt;if(G.mk.to&&G.rt>G.mk.limit){const m=G.mk;G.mk=null;m.to();return}}
+ if(play){breakTick(dt);if(G.mk){G.rt+=dt;if(G.mph&&G.rt>8&&G.mk.kicker&&(G.mk.kicker===P||G.mk.kicker.hu))startKick(G.mk.kicker);if(G.mk.to&&G.rt>G.mk.limit){const m=G.mk;G.mk=null;m.to();return}}
   checkRules(dt);if(G.state==='play'){G.t-=dt;G.elapsed+=dt;if(G.t<=0)nextPhase()}}
  else if(G.state==='wait'){if(G.sched[G.pi].k==='play'){G.t-=dt;G.elapsed+=dt;if(G.t<=0){G.after=null;G.mk=null;G.rs=null;nextPhase();return}}G.w-=dt;if(G.w<=0){const f=G.after;G.after=null;f&&f()}}
  else if(G.state==='prep'||G.state==='break'){G.t-=dt;if(G.t<=0)nextPhase()}}
-function schedule(){const m=G.mode==='match'||(G.mode==='tour'&&S.tmin===7),h=G.mode==='match'?CFG.half:G.mode==='tour'?S.tmin*60:S.pmin*60,p=m?CFG.prep:3,b=m?CFG.brk:5;
+function schedule(){const mo=G.mode==='match'||G.mode==='mp'||G.mode==='mpc',m=mo||(G.mode==='tour'&&S.tmin===7),h=mo?CFG.half:G.mode==='tour'?S.tmin*60:S.pmin*60,p=m?CFG.prep:3,b=m?CFG.brk:5;
  return[{k:'prep',d:p,l:'PERSIAPAN'},{k:'play',d:h,l:'BABAK 1'},{k:'break',d:b,l:'ISTIRAHAT'},{k:'prep',d:p,l:'PERSIAPAN'},{k:'play',d:h,l:'BABAK 2'}]}
 function nextPhase(){if(G.pi+1>=G.sched.length)return endMatch();phase(G.pi+1)}
 function phase(i){G.pi=i;const p=G.sched[i];if(p.k!=='play'){G.mk=null;G.rs=null;G.after=null;G.ko=null}G.stuck=0;G.state=p.k;G.t=p.d;$('phase').textContent=p.l;
  if(p.k==='prep'){kickoff(i>=3?'red':'blue');toast('SIAP...')}if(p.k==='play'){G.mk=G.rs;G.rs=null;G.rt=0;SFX.whistle();toast('PRIT! '+p.l)}if(p.k==='break')toast('ISTIRAHAT')}
-function startMatch(mode){ac();SFX.click();G.mode=mode;G.fixed=mode==='tour';$('bTri').style.display=G.fixed?'none':'';G.score={blue:0,red:0};ST=newStats();G.elapsed=0;G.mk=G.rs=null;G.bus={blue:0,red:0};G.paused=false;G.sched=schedule();
- if(mode==='tour')TOUR.prep();else friendly();tHand=false;$('bCir').classList.remove('on');
- ['menu','set','cred','pause','res','hub','sc'].forEach(i=>$(i).classList.remove('on'));document.body.classList.add('playing');$('hud').style.display='flex';$('pbtn').style.display='block';
- $('touch').style.display=isTouch?'block':'none';phase(0)}
+function startMatch(mode){ac();SFX.click();G.mode=mode;G.fixed=mode==='tour'||mode==='mp'||mode==='mpc';$('bTri').style.display=G.fixed?'none':'';G.score={blue:0,red:0};ST=newStats();G.elapsed=0;G.mk=G.rs=null;G.bus={blue:0,red:0};G.paused=false;G.sched=schedule();
+ if(mode==='tour')TOUR.prep();else if(mode==='mp'||mode==='mpc')MPX.prep();else friendly();tHand=false;$('bCir').classList.remove('on');
+ ['menu','set','cred','pause','res','hub','sc','pm','mpm','mpr'].forEach(i=>$(i).classList.remove('on'));document.body.classList.add('playing');$('hud').style.display='flex';$('pbtn').style.display='block';
+ $('touch').style.display=isTouch&&!G.spec?'block':'none';if(mode!=='mpc')phase(0)}
 function endMatch(){G.state='end';document.body.classList.remove('playing');$('skip').style.display='none';$('pow').style.display='none';
- const b=G.score.blue,r=G.score.red,ti=G.mode==='tour'?TOUR.finish(b,r):null,nm=t=>G.names[t];$('rt').textContent=ti&&ti.win?nm(ti.win)+' MENANG':b>r?nm('blue')+' MENANG':r>b?nm('red')+' MENANG':'SERI';$('rs').textContent=b+' - '+r+(ti&&ti.pen?'  (pen '+ti.pen+')':'');$('again').style.display=ti?'none':'block';$('rnext').style.display=ti?'block':'none';
+ const b=G.score.blue,r=G.score.red,ti=G.mode==='tour'?TOUR.finish(b,r):null,nm=t=>G.names[t];$('rt').textContent=ti&&ti.win?nm(ti.win)+' MENANG':b>r?nm('blue')+' MENANG':r>b?nm('red')+' MENANG':'SERI';$('rs').textContent=b+' - '+r+(ti&&ti.pen?'  (pen '+ti.pen+')':'');$('again').style.display=(ti||G.mph)?'none':'block';$('rnext').style.display=ti?'block':'none';
  const pt=ST.poss.blue+ST.poss.red||1,row=(a,v)=>`<div class="stat"><span>${a}</span><span>${v}</span></div>`;
  $('rstats').innerHTML=row('Durasi bermain',Math.floor(G.elapsed/60)+' mnt '+Math.floor(G.elapsed%60)+' dtk')+row('Gol (biru / merah)',ST.goals.blue+' / '+ST.goals.red)+row('Tendangan',ST.shots.blue+' / '+ST.shots.red)+row('Penguasaan bola',Math.round(ST.poss.blue/pt*100)+'% / '+Math.round(ST.poss.red/pt*100)+'%')+row('Pelanggaran dribbling',ST.fouls);
- $('res').classList.add('on');SFX.whistle()}
-function toMenu(noMenu){G.state='menu';G.fixed=false;$('bTri').style.display='';G.paused=false;document.body.classList.remove('playing');['pause','res','set','cred'].forEach(i=>$(i).classList.remove('on'));if(!noMenu)$('menu').classList.add('on');
+ $('res').classList.add('on');SFX.whistle();if(G.mph)bc({k:'end',sc:[b,r]})}
+function toMenu(noMenu){mpLeave();G.state='menu';G.fixed=false;$('bTri').style.display='';G.paused=false;document.body.classList.remove('playing');['pause','res','set','cred'].forEach(i=>$(i).classList.remove('on'));if(!noMenu)$('menu').classList.add('on');
  $('hud').style.display=$('pbtn').style.display=$('pow').style.display=$('skip').style.display=$('touch').style.display='none';P=rob('blue','ST');P.v=S.robot;P.pal=P.nm=null;setMesh(P);ROBOTS.forEach(r=>r.mesh.visible=r===P);place(P,0,0,0);B.x=.17;B.z=0;B.vx=B.vz=0;B.mesh.visible=true}
-function setPause(p){if(G.state==='menu'||G.state==='end')return;G.paused=p;$('pause').classList.toggle('on',p);inp.kick=false;if(p)SFX.click()}
+function setPause(p){if(G.state==='menu'||G.state==='end')return;const mp=G.mph||G.mpc;$('restart').style.display=mp?'none':'';G.paused=p&&!mp;$('pause').classList.toggle('on',p);inp.kick=false;if(p)SFX.click()}
 
 /* ===== INPUT ===== */
 const isTouch=matchMedia('(pointer:coarse)').matches||'ontouchstart' in window;
 const inp={t:0,s:0,hand:false,kick:false},K={},joy={x:0,y:0},dp={x:0,y:0};let tHand=false,kStart=0;
 function readInput(){let t=(K.KeyW||K.ArrowUp?1:0)-(K.KeyS||K.ArrowDown?1:0),s=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0);
  if(Math.abs(joy.x)+Math.abs(joy.y)>0){t=-joy.y;s=joy.x}else if(dp.x||dp.y){t=-dp.y;s=dp.x}inp.t=t;inp.s=s;inp.hand=!!(K.ShiftLeft||K.ShiftRight)||tHand}
-function kickDown(){if(G.state==='play'&&!G.paused)startKick(P)}
+function kickDown(){if(G.mpc){if(G.state==='play'&&!G.spec)mpSend({k:'kick'});return}if(G.state==='play'&&!G.paused)startKick(P)}
 function kickUp(){}
 addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.repeat)return;K[e.code]=true;
  if(e.code==='Space')kickDown();if(e.code==='Tab'||e.code==='KeyQ'){e.preventDefault();switchP()}if(e.code==='Escape')setPause(!G.paused&&document.body.classList.contains('playing'))});
-addEventListener('keyup',e=>{K[e.code]=false;if(e.code==='Space')kickUp()});addEventListener('blur',()=>{for(const k in K)K[k]=false;inp.kick=false;if(document.body.classList.contains('playing'))setPause(true)});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&document.body.classList.contains('playing'))setPause(true)});
+addEventListener('keyup',e=>{K[e.code]=false;if(e.code==='Space')kickUp()});addEventListener('blur',()=>{for(const k in K)K[k]=false;inp.kick=false;if(document.body.classList.contains('playing')&&!(G.mph||G.mpc))setPause(true)});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&document.body.classList.contains('playing')&&!(G.mph||G.mpc))setPause(true)});
 addEventListener('contextmenu',e=>e.preventDefault());
 let editing=false;const CD={gpad:{x:3,y:46},stick:{x:3,y:3},face:{x:3,y:6}};
 function ctl(){if(!S.ctl)S.ctl={s:1,o:.92,p:{}};return S.ctl}
@@ -477,10 +489,10 @@ chips('gq',[['low','LOW','tanpa shadow'],['med','MEDIUM','shadow ringan'],['high
 $('vol').value=S.vol;$('vol').oninput=e=>{S.vol=+e.target.value;save()};$('pmin').value=S.pmin;$('pmin').onchange=e=>{S.pmin=+e.target.value;save()};
 const muteUI=()=>$('mute').textContent='Suara: '+(S.mute?'MUTE':'ON');muteUI();$('mute').onclick=()=>{S.mute=!S.mute;muteUI();save();SFX.click()};
 let setFrom='menu';const show=(a,b)=>{$(a).classList.remove('on');$(b).classList.add('on');SFX.click()};
-$('play').onclick=()=>startMatch('match');$('prac').onclick=()=>startMatch('practice');
+$('play').onclick=()=>show('menu','pm');$('prac').onclick=()=>startMatch('practice');
 $('bset').onclick=()=>{setFrom='menu';show('menu','set')};$('bcred').onclick=()=>show('menu','cred');$('credback').onclick=()=>show('cred','menu');
 $('setback').onclick=()=>show('set',setFrom);$('psetb').onclick=()=>{setFrom='pause';show('pause','set')};
-$('resume').onclick=()=>setPause(false);$('restart').onclick=()=>startMatch(G.mode);$('tomenu').onclick=()=>toMenu();$('again').onclick=()=>startMatch(G.mode);$('rmenu').onclick=()=>toMenu();
+$('resume').onclick=()=>setPause(false);$('restart').onclick=()=>{if(!(G.mph||G.mpc))startMatch(G.mode)};$('tomenu').onclick=()=>toMenu();$('again').onclick=()=>startMatch(G.mode);$('rmenu').onclick=()=>toMenu();
 $('pbtn').onclick=()=>setPause(true);$('skip').onclick=()=>{G.t=0;SFX.click()};
 
 /* ===== SURO CUP (turnamen) ===== */
@@ -507,7 +519,7 @@ function newTour(k,pname){TEAMS.forEach(t=>{t.st={p:0,gd:0,gf:0,w:0,d:0,l:0,pl:0
  TS={me:TEAMS.find(t=>t.k===k),pname,G:{},sched:[],ko:null,cur:null,stage:'group',pl:{},out:false,champ:null,tab:'main'};const d1=[],d2=[];
  GRP.split(';').forEach(q=>{const[g,l]=q.split(':'),ts=l.split(',').map(n=>{const t=TEAMS.find(x=>x.k===n);t.g=g;return t});TS.G[g]=ts;
   const ms=[[0,1],[0,2],[1,2]].map(([i,j])=>({a:ts[i],b:ts[j],g}));if(g<='F'){ms[0].day=ms[1].day=1;ms[2].day=2;d1.push(ms[0],ms[1]);d2.push(ms[2])}else ms.forEach(m=>{m.day=2;d2.push(m)})});
- TS.sched=d1.concat(d2);simUntil()}
+ TS.sched=d1.concat(d2);simUntil();saveTour()}
 function pensM(a,b){let sa=0,sb=0;const pa=clamp(.7+(a.r-b.r)*.01,.5,.85),pb=clamp(.7+(b.r-a.r)*.01,.5,.85);for(let i=0;i<5;i++){if(Math.random()<pa)sa++;if(Math.random()<pb)sb++}
  while(sa===sb){if(Math.random()<pa)sa++;if(Math.random()<pb)sb++}return{sa,sb,w:sa>sb?a:b}}
 function credit(t,gf,ga){const W=[['ST',.55],['MF',.93],['GK',1]];for(let i=0;i<gf;i++){const x=Math.random(),p=pst(t,W.find(w=>x<w[1])[0]);p.g++;p.pts+=5}
@@ -534,7 +546,7 @@ const TOUR={
  finish(b,r){const m=TS.cur2,meA=m.a===TS.me,ga=meA?b:r,gb=meA?r:b;
   ROBOTS.forEach(x=>{const t=x.team==='blue'?TS.me:TS.opp,p=pst(t,x.role),cs=(x.team==='blue'?r:b)===0;p.mp++;p.g+=x.s.g;p.pts+=1+x.s.g*5+x.s.sh*.5+x.s.po*.12+x.s.tk*1.5+(cs?(x.role==='GK'?3:x.role==='MF'?1.5:0):0)});
   const ko=TS.stage!=='group';fin(m,ga,gb,ko);const res={win:null,pen:null};if(m.pen)res.pen=meA?m.pen:m.pen.split('-').reverse().join('-');if(m.win)res.win=m.win===TS.me?'blue':'red';
-  if(ko){if(TS.cur!=='fin'&&m.win!==TS.me)TS.out=true;simRound()}else simUntil();return res},
+  if(ko){if(TS.cur!=='fin'&&m.win!==TS.me)TS.out=true;simRound()}else simUntil();saveTour();return res},
  hub(){['menu','sc'].forEach(i=>$(i).classList.remove('on'));$('hub').classList.add('on');renderHub()}};
 const SCS={sel:'vagary',role:'ST'};
 function drawSR(){const b=$('scr');if(!b)return;b.innerHTML='';const rb=robotsOf(TEAMS.find(x=>x.k===SCS.sel));['GK','MF','ST'].forEach(ro=>{const c=document.createElement('button');c.className='chip'+(SCS.role===ro?' sel':'');c.innerHTML='<b>'+rb[ro].nm+'</b><span>'+ROLE[ro]+' · #'+rb[ro].no+(rb[ro].nm==='PHANTOM'?'<br>lebih cepat':'')+'</span>';c.onclick=()=>{SCS.role=ro;SFX.click();drawSR()};b.appendChild(c)})}
@@ -563,13 +575,132 @@ function renderHub(){const T=TS,m=nextM(),tabs=[['main','Main'],['grup','Grup'],
  const hp=$('hplay');if(hp)hp.onclick=()=>{TS.cur2=m;TS.opp=m.a===TS.me?m.b:m.a;startMatch('tour')}}
 $('bsc').onclick=()=>{SFX.click();if(TS)TOUR.hub();else{$('menu').classList.remove('on');$('sc').classList.add('on');drawSC()}};
 $('scback').onclick=()=>show('sc','menu');
-$('scgo').onclick=()=>{S.tmin=+$('tmin').value;save();newTour(SCS.sel,$('pname').value.trim().toUpperCase()||'PEMAIN');TS.role=SCS.role;SFX.click();TOUR.hub()};
-$('hmenu').onclick=()=>show('hub','menu');$('hnew').onclick=()=>{TS=null;show('hub','sc');drawSC()};
+$('scgo').onclick=()=>{S.tmin=+$('tmin').value;save();newTour(SCS.sel,$('pname').value.trim().toUpperCase()||'PEMAIN');TS.role=SCS.role;saveTour();SFX.click();TOUR.hub()};
+$('hmenu').onclick=()=>show('hub','menu');$('hnew').onclick=()=>{if(!confirm('Mulai turnamen baru? Progress turnamen lama akan dihapus.'))return;TS=null;saveTour();$('bsc').textContent='SURO CUP · Mode Turnamen';show('hub','sc');drawSC()};
 $('rnext').onclick=()=>{$('res').classList.remove('on');toMenu(true);TOUR.hub()};
 $('tmin').value=S.tmin;
+/* ===== PROGRES TURNAMEN TERSIMPAN ===== */
+const TKEY='suro26_tour';
+function saveTour(){try{if(!TS){localStorage.removeItem(TKEY);return}
+ const k=t=>t?t.k:null,ms=a=>a.map(m=>({a:k(m.a),b:k(m.b),g:m.g,day:m.day,done:!!m.done,ga:m.ga,gb:m.gb,win:k(m.win),pen:m.pen,tag:m.tag}));
+ localStorage.setItem(TKEY,JSON.stringify({v:1,me:k(TS.me),pname:TS.pname,role:TS.role,stage:TS.stage,cur:TS.cur,out:TS.out,champ:k(TS.champ),tab:TS.tab,
+  teams:TEAMS.map(t=>({k:t.k,g:t.g,fp:t.fp,st:t.st})),sched:ms(TS.sched),ko:TS.ko?Object.fromEntries(Object.keys(TS.ko).map(r=>[r,ms(TS.ko[r])])):null,
+  W:TS.W?TS.W.map(k):null,RU:TS.RU?TS.RU.map(k):null,pl:Object.values(TS.pl).map(p=>({t:k(p.t),ro:p.ro,nm:p.nm,g:p.g,pts:p.pts,mp:p.mp}))}))}catch(e){}}
+function loadTour(){try{const d=JSON.parse(localStorage.getItem(TKEY)||'null');if(!d||d.v!==1)return null;const T=k=>k?TEAMS.find(t=>t.k===k)||null:null;
+ d.teams.forEach(x=>{const t=T(x.k);if(t){t.g=x.g;t.fp=x.fp;t.st=x.st}});
+ const ms=a=>a.map(m=>({a:T(m.a),b:T(m.b),g:m.g,day:m.day,done:m.done,ga:m.ga,gb:m.gb,win:T(m.win),pen:m.pen,tag:m.tag})),G_={};
+ GRP.split(';').forEach(q=>{const[g,l]=q.split(':');G_[g]=l.split(',').map(n=>T(n))});
+ const t={me:T(d.me),pname:d.pname,role:d.role,G:G_,sched:ms(d.sched),ko:d.ko?Object.fromEntries(Object.keys(d.ko).map(r=>[r,ms(d.ko[r])])):null,cur:d.cur,stage:d.stage,out:d.out,champ:T(d.champ),tab:d.tab||'main',pl:{}};
+ if(d.W)t.W=d.W.map(T);if(d.RU)t.RU=d.RU.map(T);d.pl.forEach(p=>{t.pl[p.t+p.ro]={t:T(p.t),ro:p.ro,nm:p.nm,g:p.g,pts:p.pts,mp:p.mp}});
+ if(!t.me)return null;return t}catch(e){return null}}
+TS=loadTour();if(TS)$('bsc').textContent='SURO CUP · Lanjutkan Turnamen';
+
+/* ===== MULTIPLAYER (room via WebRTC/PeerJS; owner room = host yang menjalankan simulasi) ===== */
+const MP={role:null,peer:null,conn:null,conns:{},room:null,me:null,cfg:null,sn:null,first:false,note:''};
+const inp0={t:0,s:0,hand:false},ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]};
+const PICKS=[];['vagary','stratos','vyre'].forEach(k=>['ST','MF','GK'].forEach(ro=>PICKS.push({k,ro})));
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),mpErr=t=>{$('mperr').textContent=t||''};
+const rid=()=>Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
+const myPid=()=>MP.role==='host'?'host':MP.me,humanPf=r=>(r.role==='ST'?1.1:1)*(r.nm==='PHANTOM'?1.08:1)*(r.nm==='CHAOS'?1.1:1);
+function mpName(){const n=($('mpname').value||'').trim().slice(0,14)||'PEMAIN';S.mpname=n;save();return n}
+function bc(m){Object.keys(MP.conns).forEach(id=>{try{MP.conns[id].send(m)}catch(e){}})}
+function mpSend(m){if(MP.role==='host')hostMsg('host',m);else if(MP.conn)try{MP.conn.send(m)}catch(e){}}
+['kick','hit','whistle','goal'].forEach(n=>{const o=SFX[n];let lt=0;SFX[n]=(...a)=>{o(...a);if(G.mph){const t=Date.now();if(n!=='hit'||t-lt>150){lt=t;bc({k:'ev',e:'s',a:[n]})}}}});
+function mpLeave(){const p=MP.peer;MP.role=null;MP.peer=null;MP.conn=null;MP.conns={};MP.room=null;MP.cfg=null;MP.sn=null;G.mph=G.mpc=G.spec=false;try{if(p)p.destroy()}catch(e){}$('mpr').classList.remove('on')}
+function slotOf(pid){const R_=MP.room;for(const s of['blue','red','spec']){const i=R_[s].findIndex(x=>x&&x.pid===pid);if(i>=0)return{s,i,o:R_[s][i]}}return null}
+function hostAdd(pid,name){const R_=MP.room,cnt=s=>R_[s].filter(Boolean).length,free=s=>R_[s].findIndex(x=>!x);let s=null;
+ if(R_.phase==='lobby')s=(cnt('blue')<=cnt('red')?['blue','red']:['red','blue']).find(x=>free(x)>=0);
+ if(!s&&free('spec')>=0)s='spec';if(!s)return false;R_[s][free(s)]={pid,name,pick:null,ok:false};return true}
+function hostRemove(pid){const R_=MP.room;if(!R_)return;const o=slotOf(pid);if(o)R_[o.s][o.i]=null;delete MP.conns[pid];const r=ROBOTS.find(x=>x.hu===pid);if(r)r.hu=null;
+ if(R_.phase==='pick'){if(!R_.blue.some(Boolean)||!R_.red.some(Boolean)){R_.phase='lobby';R_.blue.concat(R_.red).forEach(x=>x&&(x.pick=null,x.ok=false))}}}
+function chkAll(){const R_=MP.room,pl=R_.blue.concat(R_.red).filter(Boolean);if(R_.phase==='pick'&&pl.length&&pl.every(x=>x.ok))mpStart()}
+function hostPub(){const R_=MP.room;bc({k:'room',room:{id:R_.id,name:R_.name,n:R_.n,pw:!!R_.pw,blue:R_.blue,red:R_.red,spec:R_.spec,phase:R_.phase,names:R_.names,note:MP.note||''}});renderRoom()}
+function hostMsg(pid,m){const R_=MP.room;if(!R_)return;const o=slotOf(pid);let ch=true;
+ switch(m.k){
+ case'slot':if(R_.phase==='lobby'&&o&&R_[m.to]&&!R_[m.to][m.i]){const x=o.o;R_[o.s][o.i]=null;R_[m.to][m.i]=x}break;
+ case'name':if(o&&o.s!=='spec'&&R_.phase!=='play'&&R_[o.s].findIndex(Boolean)===o.i)R_.names[o.s]=String(m.v||'').slice(0,18)||(o.s==='blue'?'TIM BIRU':'TIM MERAH');break;
+ case'start':if(pid==='host'&&R_.phase==='lobby'){if(!R_.blue.some(Boolean)||!R_.red.some(Boolean)){MP.note='Butuh minimal 1 pemain di tiap tim';break}R_.phase='pick';MP.note='';R_.blue.concat(R_.red).forEach(x=>x&&(x.pick=null,x.ok=false))}break;
+ case'pick':if(R_.phase==='pick'&&o&&o.s!=='spec'&&!R_[o.s].some((x,i)=>x&&i!==o.i&&x.pick&&x.pick.ro===m.ro)&&PICKS.some(p=>p.k===m.pk&&p.ro===m.ro)){o.o.pick={k:m.pk,ro:m.ro};o.o.ok=false}break;
+ case'ok':if(R_.phase==='pick'&&o&&o.o.pick)o.o.ok=true;break;
+ case'inp':{const r=ROBOTS.find(x=>x.hu===pid);if(r)r.rin={t:clamp(+m.t||0,-1,1),s:clamp(+m.s||0,-1,1),hand:!!m.h};ch=false;break}
+ case'kick':{const r=ROBOTS.find(x=>x.hu===pid);if(r&&G.state==='play')startKick(r);ch=false;break}
+ default:ch=false}
+ if(ch){hostPub();chkAll()}}
+function mpCreate(){const name=($('rname').value||'').trim().slice(0,20)||'Room Suro Cup',pw=($('rpw').value||'').trim().slice(0,12),n=+$('rmode').value||1,pn=mpName();
+ if(!window.Peer){mpErr('Library multiplayer gagal dimuat (cek koneksi internet).');return}
+ mpLeave();mpErr('Membuat room...');MP.role='host';const id=rid(),pr=new Peer('surocup-'+id,{config:ICE});MP.peer=pr;
+ pr.on('open',()=>{MP.room={id,name,pw,n,blue:Array(n).fill(null),red:Array(n).fill(null),spec:Array(6).fill(null),phase:'lobby',names:{blue:'TIM BIRU',red:'TIM MERAH'}};MP.room.blue[0]={pid:'host',name:pn,pick:null,ok:false};mpErr('');hostPub()});
+ pr.on('connection',c=>{c.on('data',m=>{const R_=MP.room;if(!R_)return;
+   if(m.k==='join'){if(R_.pw&&m.pw!==R_.pw){c.send({k:'deny',r:'Password salah'});setTimeout(()=>c.close(),400);return}
+    MP.conns[c.peer]=c;if(!hostAdd(c.peer,String(m.name||'Pemain').slice(0,14))){c.send({k:'deny',r:'Room penuh'});delete MP.conns[c.peer];setTimeout(()=>c.close(),400);return}
+    c.send({k:'hi',pid:c.peer});hostPub();if(R_.phase==='play'&&MP.cfg)c.send({k:'start',cfg:MP.cfg})}
+   else if(MP.conns[c.peer])hostMsg(c.peer,m)});
+  c.on('close',()=>{if(MP.room&&MP.conns[c.peer]){hostRemove(c.peer);hostPub()}})});
+ pr.on('error',e=>{if(e.type==='unavailable-id')mpCreate();else mpErr('Gagal membuat room: '+(e.type||e))})}
+function mpJoin(){const id=($('rid').value||'').trim().toUpperCase(),pw=($('rpw2').value||'').trim(),pn=mpName();
+ if(!id){mpErr('Masukkan ID room');return}if(!window.Peer){mpErr('Library multiplayer gagal dimuat (cek koneksi internet).');return}
+ mpLeave();MP.role='client';mpErr('Menghubungkan...');let ok=false;const pr=new Peer(undefined,{config:ICE});MP.peer=pr;
+ const to=setTimeout(()=>{if(!ok){mpLeave();mpErr('Tidak bisa terhubung (ID salah atau jaringan memblokir koneksi).')}},12000);
+ pr.on('open',()=>{const c=pr.connect('surocup-'+id,{reliable:true});MP.conn=c;
+  c.on('open',()=>{ok=true;clearTimeout(to);c.send({k:'join',name:pn,pw})});c.on('data',cMsg);
+  c.on('close',()=>{if(MP.role==='client'){mpLeave();toMenu();setTimeout(()=>alert('Koneksi ke host terputus.'),50)}})});
+ pr.on('error',e=>{clearTimeout(to);const t=e.type==='peer-unavailable'?'Room tidak ditemukan':'Gagal: '+(e.type||e);mpLeave();mpErr(t)})}
+function cMsg(m){switch(m.k){
+ case'hi':MP.me=m.pid;break;
+ case'deny':{const r=m.r;mpLeave();mpErr(r);break}
+ case'room':MP.room=m.room;renderRoom();break;
+ case'start':MP.cfg=m.cfg;startMatch('mpc');G.state='prep';G.t=0;MP.sn=null;MP.first=true;break;
+ case'snap':clientSnap(m);break;
+ case'ev':if(m.e==='t')toast(m.a[0],m.a[1]);else if(SFX[m.a[0]])SFX[m.a[0]]();break;
+ case'end':clientEnd(m);break}}
+function renderRoom(){const R_=MP.room;if(!R_||R_.phase==='play')return;const ae=document.activeElement;if(ae&&ae.id==='tname')return;
+ ['menu','pm','mpm'].forEach(i=>$(i).classList.remove('on'));$('mpr').classList.add('on');
+ const me=myPid(),nm=x=>x?esc(x.name)+(x.pid===me?' (kamu)':'')+(R_.phase==='pick'?(x.ok?' ✔':x.pick?' …':''):''):'Kosong',
+  sl=(side,i)=>{const x=R_[side][i];return `<button class="slot ${x&&x.pid===me?'me':''} ${x?'':'emp'}" data-a="slot" data-s="${side}" data-i="${i}">${nm(x)}</button>`};
+ let h=`<h1 style="font-size:30px">${esc(R_.name)}<small>ID: ${R_.id} · ${R_.n}v${R_.n} · ${R_.pw?'Dengan password':'Tanpa password'}</small></h1>`;
+ if(R_.phase==='lobby'){h+='<div class="row"><div><h2>TIM BIRU</h2>'+R_.blue.map((_,i)=>sl('blue',i)).join('')+'</div><div><h2>TIM MERAH</h2>'+R_.red.map((_,i)=>sl('red',i)).join('')+'</div></div><h2>PENONTON</h2>'+R_.spec.map((_,i)=>sl('spec',i)).join('')
+   +(R_.note?`<p style="color:#ff8a80">${esc(R_.note)}</p>`:'')+(MP.role==='host'?'<button class="btn" data-a="start">MULAI</button>':'<p>Menunggu owner room memulai...</p>')}
+ else{const o=slotOf(me);
+  if(o&&o.s!=='spec'){const side=o.s,lead=R_[side].findIndex(Boolean)===o.i,mate=PICKS.map(p=>R_[side].some((x,i)=>x&&i!==o.i&&x.pick&&x.pick.ro===p.ro));
+   h+=`<h2>Nama tim ${side==='blue'?'biru':'merah'}</h2>`+(lead?`<input class="in" id="tname" maxlength="18" value="${esc(R_.names[side])}">`:`<p><b>${esc(R_.names[side])}</b> (diatur oleh ${esc(R_[side].find(Boolean).name)})</p>`);
+   h+='<h2>Pilih robot (1 robot per posisi dalam satu tim)</h2><div class="row">'+PICKS.map((p,i)=>{const t=TEAMS.find(x=>x.k===p.k),d=robotsOf(t)[p.ro],sel=o.o.pick&&o.o.pick.k===p.k&&o.o.pick.ro===p.ro;
+    return `<button class="chip ${sel?'sel':''}" data-a="pick" data-k="${p.k}" data-ro="${p.ro}" ${mate[i]?'disabled':''}><b>${d.nm}</b><span>${t.n} · ${ROLE[p.ro]}</span></button>`}).join('')+'</div>'
+   +`<button class="btn" data-a="ok" ${o.o.pick&&!o.o.ok?'':'disabled'}>${o.o.ok?'Menunggu pemain lain...':'Konfirmasi'}</button>`}
+  else h+='<p>Pemain sedang memilih robot... kamu menonton sebagai penonton.</p>';
+  h+='<h2>Status</h2>'+['blue','red'].map(s=>R_[s].filter(Boolean).map(x=>`<div class="stat"><span>${s==='blue'?'Biru':'Merah'}: ${esc(x.name)}</span><span>${x.ok?'siap ✔':x.pick?'memilih…':'belum memilih'}</span></div>`).join('')).join('')}
+ h+='<button class="btn alt" data-a="leave">Keluar room</button>';$('mprc').innerHTML=h}
+$('mprc').onclick=e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a;SFX.click();
+ if(a==='slot')mpSend({k:'slot',to:b.dataset.s,i:+b.dataset.i});else if(a==='start')mpSend({k:'start'});else if(a==='pick')mpSend({k:'pick',pk:b.dataset.k,ro:b.dataset.ro});else if(a==='ok')mpSend({k:'ok'});
+ else if(a==='leave'){mpLeave();show('mpr','menu')}};
+$('mprc').onchange=e=>{if(e.target.id==='tname')mpSend({k:'name',v:e.target.value})};
+function mpStart(){const R_=MP.room;R_.phase='play';const rb={blue:{},red:{}},hu={};
+ ['blue','red'].forEach(side=>{const pl=R_[side].filter(Boolean),base=pl[0].pick.k;['ST','MF','GK'].forEach(ro=>{const p=pl.find(x=>x.pick.ro===ro);rb[side][ro]=robotsOf(TEAMS.find(t=>t.k===(p?p.pick.k:base)))[ro]});pl.forEach(p=>{hu[p.pid]=side+':'+p.pick.ro})});
+ MP.cfg={rb,hu,names:R_.names};hostPub();bc({k:'start',cfg:MP.cfg});startMatch('mp')}
+const MPX={prep(){const c=MP.cfg;ROBOTS.forEach(r=>{r.hu=null;r.rin=null});
+ ['blue','red'].forEach(sd=>setupTeam(sd,{name:String(c.names[sd]).toUpperCase(),logo:logoOf('Smanix'),rating:8,L:7/9,rb:c.rb[sd],absent:null,brk:0}));
+ Object.keys(c.hu).forEach(pid=>{const[sd,ro]=c.hu[pid].split(':'),r=rob(sd,ro);r.rin={t:0,s:0,hand:false};r.pf=humanPf(r);r.agi=1;r.hu=pid==='host'?null:pid});
+ G.info=null;G.spec=false;P=ROBOTS[0];const mine=c.hu[myPid()];
+ if(mine){const[sd,ro]=mine.split(':');P=rob(sd,ro)}else G.spec=true;
+ G.mph=MP.role==='host';G.mpc=MP.role==='client'}};
+let lastSnap=0,lastInp=0,lastI='';
+function mpTick(now){if(G.state==='menu')return;
+ if(G.mph){if(now-lastSnap>50&&G.state!=='end'){lastSnap=now;bc({k:'snap',s:G.state,t:+G.t.toFixed(1),pi:G.pi,sc:[G.score.blue,G.score.red],ph:G.sched[G.pi]?G.sched[G.pi].l:'',b:[B.x,B.z,B.vx,B.vz].map(v=>+v.toFixed(3)),
+  r:ROBOTS.map(r=>[+r.x.toFixed(3),+r.z.toFixed(3),+r.th.toFixed(2),+r.vl.toFixed(2),+r.vr.toFixed(2),+r.kt.toFixed(2),r.out?1:0,r.in.hand?1:0])})}}
+ else if(G.mpc&&!G.spec&&MP.conn){const q=inp.t.toFixed(2)+'|'+inp.s.toFixed(2)+'|'+(inp.hand?1:0);if((q!==lastI&&now-lastInp>40)||now-lastInp>400){lastI=q;lastInp=now;try{MP.conn.send({k:'inp',t:inp.t,s:inp.s,h:inp.hand})}catch(e){}}}}
+function clientSnap(m){G.state=m.s;G.t=m.t;G.pi=m.pi;G.score={blue:m.sc[0],red:m.sc[1]};if($('phase').textContent!==m.ph)$('phase').textContent=m.ph;MP.sn=m;
+ if(MP.first){MP.first=false;ROBOTS.forEach((r,i)=>{const a=m.r[i];r.x=a[0];r.z=a[1];r.th=a[2]});B.x=m.b[0];B.z=m.b[1]}}
+function clientApply(dt){const sn=MP.sn;if(!sn)return;const k=1-Math.exp(-dt*16);
+ ROBOTS.forEach((r,i)=>{const a=sn.r[i];if(!a)return;r.x+=(a[0]-r.x)*k;r.z+=(a[1]-r.z)*k;r.th+=angd(a[2]-r.th)*k;r.vl=a[3];r.vr=a[4];r.out=!!a[6];r.in.hand=!!a[7];
+  r.refs.tongue.position.x=.1+(a[5]>0?Math.sin(clamp(a[5]/.22,0,1)*Math.PI)*.035:0);if(a[7])r.refs.discs.forEach((d,j)=>d.rotation.z+=(j?-1:1)*dt*22)});
+ B.x+=(sn.b[0]-B.x)*k;B.z+=(sn.b[1]-B.z)*k;B.vx=sn.b[2];B.vz=sn.b[3]}
+function clientEnd(m){G.state='end';document.body.classList.remove('playing');$('skip').style.display='none';const b=m.sc[0],r=m.sc[1];
+ $('rt').textContent=b>r?G.names.blue+' MENANG':r>b?G.names.red+' MENANG':'SERI';$('rs').textContent=b+' - '+r;$('rstats').innerHTML='';$('again').style.display='none';$('rnext').style.display='none';$('res').classList.add('on');SFX.whistle()}
+$('pm1').onclick=()=>startMatch('match');$('pm2').onclick=()=>{$('mpname').value=S.mpname||'';mpErr('');show('pm','mpm')};$('pmb').onclick=()=>show('pm','menu');
+$('mpb1').onclick=()=>{$('mpf1').style.display='block';$('mpf2').style.display='none';SFX.click()};$('mpb2').onclick=()=>{$('mpf2').style.display='block';$('mpf1').style.display='none';SFX.click()};
+$('rgo').onclick=mpCreate;$('rjoin').onclick=mpJoin;$('mpback').onclick=()=>{mpLeave();show('mpm','pm')};
 /* ===== LOOP ===== */
 let last=performance.now(),acc=0,lastT='';const H=1/120;const cp=new THREE.Vector3(),cl=new THREE.Vector3(0,0,0);
-function sync(dt){ROBOTS.forEach(r=>r.mesh.visible=!r.out);mark.visible=G.state!=='menu';mark.position.set(P.x,.012,P.z);ROBOTS.forEach(r=>{r.mesh.position.set(r.x,0,r.z);r.mesh.rotation.y=-r.th;
+function sync(dt){ROBOTS.forEach(r=>r.mesh.visible=!r.out);mark.visible=G.state!=='menu'&&!G.spec;mark.position.set(P.x,.012,P.z);ROBOTS.forEach(r=>{r.mesh.position.set(r.x,0,r.z);r.mesh.rotation.y=-r.th;
   r.refs.wheels.forEach((w,i)=>w.rotation.z-=(i?r.vr:r.vl)*dt/.04)});
  B.mesh.position.set(B.x,CFG.br,B.z);const sp=Math.hypot(B.vx,B.vz);if(sp>.01)B.mesh.rotateOnWorldAxis(new THREE.Vector3(B.vz,0,-B.vx).normalize(),sp*dt/CFG.br)}
 const cpv=new THREE.Vector3();let camF=0,camMode=0;
@@ -578,7 +709,7 @@ function camera(dt,now){
  const k=1-Math.exp(-dt*3),port=cam.aspect<1.2?1.5:1,dP=Math.hypot(P.x-B.x,P.z-B.z);
  cpv.set(P.x,.05,P.z).project(cam);
  const off=cpv.z>1||Math.abs(cpv.x)>.78||cpv.y>.7||cpv.y<-.78;
- if(!camMode&&off&&dP>.55)camMode=1;else if(camMode&&dP<.55)camMode=0;
+ if(!G.spec&&!camMode&&off&&dP>.55)camMode=1;else if(camMode&&dP<.55)camMode=0;
  camF+=((camMode?1:0)-camF)*(1-Math.exp(-dt*2.5));
  const tx=B.x+(P.x+(B.x-P.x)*.2-B.x)*camF,tz=B.z+(P.z+(B.z-P.z)*.2-B.z)*camF,lz=1.15+.3*camF,lx=.5+.3*camF,
   fz=clamp(tz*(.75+.2*camF),-lz,lz),fx=clamp(tx*.5,-lx,lx);
@@ -586,10 +717,10 @@ function camera(dt,now){
 function lg(id,u){const e=$(id);if(u){if(e.dataset.u!==u){e.src=u;e.dataset.u=u}e.style.display='block'}else e.style.display='none'}
 function hud(){const s=G.state,t=Math.max(0,Math.ceil(G.t)),txt=String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
  if(txt!==lastT){lastT=txt;$('tm').textContent=txt}$('n1').textContent=G.names.blue;$('n2').textContent=G.names.red;lg('l1',G.logos.blue);lg('l2',G.logos.red);$('sb1').textContent=G.score.blue;$('sb2').textContent=G.score.red;
- $('skip').style.display=(s==='prep'||s==='break')?'block':'none';$('pow').firstChild.style.width=inp.kick?Math.round(clamp(P.charge/CFG.charge,0,1)*100)+'%':'0'}
-function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;readInput();
+ $('skip').style.display=((s==='prep'||s==='break')&&!G.mph&&!G.mpc)?'block':'none';$('pow').firstChild.style.width=inp.kick?Math.round(clamp(P.charge/CFG.charge,0,1)*100)+'%':'0'}
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;readInput();if(G.mph||G.mpc)mpTick(now);
  if(G.state==='menu'){P.mesh.position.set(0,0,0);P.mesh.rotation.y=0;B.mesh.position.set(.17,CFG.br,0);P.refs.discs.forEach((d,i)=>d.rotation.z+=(i?-1:1)*dt*6)}
- else{if(!G.paused&&G.state!=='end'){acc+=dt;let n=0;while(acc>=H&&n<6){try{sim(H)}catch(e){if(!loop.err){loop.err=1;console.error(e)}}acc-=H;n++}if(n>=6)acc=0}sync(dt);hud()}
+ else{if(G.mpc)clientApply(dt);else if(!G.paused&&G.state!=='end'){acc+=dt;let n=0;while(acc>=H&&n<6){try{sim(H)}catch(e){if(!loop.err){loop.err=1;console.error(e)}}acc-=H;n++}if(n>=6)acc=0}sync(dt);hud()}
  camera(dt,now);R.render(scene,cam)}
 cv.addEventListener('webglcontextlost',e=>e.preventDefault());cv.addEventListener('webglcontextrestored',()=>{applyQ()});
 applyQ();toMenu();requestAnimationFrame(loop);
